@@ -44,11 +44,93 @@ header('Content-Type: text/html; charset=UTF-8');
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <div class="user-info">
-                    <div class="user-avatar">U</div>
+                <div class="user-info" id="userProfileBtn">
+                    <div class="user-avatar" id="userAvatar">U</div>
                     <div class="user-details">
-                        <span class="user-name">User</span>
-                        <span class="user-role">Premium</span>
+                        <span class="user-name" id="userName">User</span>
+                        <span class="user-role" id="userRole">Premium</span>
+                    </div>
+                </div>
+                
+                <div class="profile-popup" id="profilePopup">
+                    <div class="profile-header">
+                        <div class="profile-avatar-large" id="profileAvatar">U</div>
+                        <div class="profile-info">
+                            <h3 id="profileName">User</h3>
+                            <span id="profileRole">Premium Member</span>
+                        </div>
+                        <button class="profile-close" id="closeProfile">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="profile-tabs">
+                        <button class="profile-tab active" data-tab="profile">Profile</button>
+                        <button class="profile-tab" data-tab="settings">Settings</button>
+                    </div>
+                    
+                    <div class="profile-content">
+                        <div class="profile-panel active" id="profilePanel">
+                            <div class="form-group">
+                                <label>Name</label>
+                                <input type="text" id="profileNameInput" value="User">
+                            </div>
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="profileEmail" placeholder="user@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Avatar</label>
+                                <div class="avatar-grid" id="avatarGrid">
+                                    <div class="avatar-option active" data-avatar="U" style="background: #f59e0b;">U</div>
+                                    <div class="avatar-option" data-avatar="A" style="background: #3b82f6;">A</div>
+                                    <div class="avatar-option" data-avatar="M" style="background: #10b981;">M</div>
+                                    <div class="avatar-option" data-avatar="J" style="background: #ec4899;">J</div>
+                                    <div class="avatar-option" data-avatar="S" style="background: #8b5cf6;">S</div>
+                                    <div class="avatar-option" data-avatar="K" style="background: #ef4444;">K</div>
+                                </div>
+                            </div>
+                            <button class="btn-primary" id="saveProfile">Save Changes</button>
+                        </div>
+                        
+                        <div class="profile-panel" id="settingsPanel">
+                            <div class="settings-row">
+                                <div class="settings-label">
+                                    <i class="fas fa-moon"></i>
+                                    <span>Dark Mode</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="darkModeToggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label">
+                                    <i class="fas fa-bell"></i>
+                                    <span>Notifications</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="notificationsToggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="settings-row">
+                                <div class="settings-label">
+                                    <i class="fas fa-key"></i>
+                                    <span>Change Password</span>
+                                </div>
+                                <button class="btn-icon-small" id="changePasswordBtn">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-footer">
+                        <button class="btn-danger" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt"></i>
+                            Logout
+                        </button>
                     </div>
                 </div>
             </div>
@@ -66,8 +148,18 @@ header('Content-Type: text/html; charset=UTF-8');
                     </button>
                     <button class="btn-icon" id="notificationBtn" title="Notifications">
                         <i class="fas fa-bell"></i>
-                        <span class="notification-badge">3</span>
+                        <span class="notification-badge" id="notificationBadge"></span>
                     </button>
+                    <div class="notification-popup" id="notificationPopup">
+                        <div class="notification-header">
+                            <h3>Recent Purchases</h3>
+                            <button class="notification-close" id="closeNotification">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -78,7 +170,16 @@ header('Content-Type: text/html; charset=UTF-8');
                         <p class="subtitle">Overview of your expenses</p>
                     </div>
                     
-                    <div class="stats-grid">
+                    <div class="search-results-section" id="searchResultsSection" style="display: none;">
+                        <div class="search-results-header">
+                            <h2><i class="fas fa-search"></i> Search Results</h2>
+                            <span id="searchResultsCount"></span>
+                        </div>
+                        <div class="search-results-list" id="searchResultsList"></div>
+                        <button class="btn-secondary" id="clearSearchResults">Clear Search</button>
+                    </div>
+                    
+                    <div class="stats-grid" id="statsGrid">
                         <div class="stat-card total">
                             <div class="stat-icon">
                                 <i class="fas fa-wallet"></i>
@@ -224,12 +325,11 @@ header('Content-Type: text/html; charset=UTF-8');
                 </div>
 
                 <div id="add-expense-view" class="view">
-                    <div class="view-header">
-                        <h1>Add Expense</h1>
-                        <p class="subtitle">Record a new transaction</p>
-                    </div>
-
                     <div class="form-container">
+                        <div class="form-header">
+                            <h1>Add Expense</h1>
+                            <p class="subtitle">Record a new transaction</p>
+                        </div>
                         <form id="expenseForm" class="expense-form">
                             <div class="form-group">
                                 <label for="expenseDescription">Description</label>
@@ -309,20 +409,82 @@ header('Content-Type: text/html; charset=UTF-8');
                         <div class="report-card">
                             <div class="report-header">
                                 <h3>Category Breakdown</h3>
-                                <select id="reportPeriod">
-                                    <option value="month">This Month</option>
-                                    <option value="year">This Year</option>
-                                    <option value="all">All Time</option>
-                                </select>
+                                <div class="report-period-tabs">
+                                    <button class="period-tab active" data-period="week">Week</button>
+                                    <button class="period-tab" data-period="month">Month</button>
+                                    <button class="period-tab" data-period="year">Year</button>
+                                </div>
                             </div>
-                            <div class="report-body" id="categoryReport"></div>
+                            <div class="report-chart-container">
+                                <div class="report-donut" id="reportDonut"></div>
+                                <div class="report-body" id="categoryReport"></div>
+                            </div>
                         </div>
 
                         <div class="report-card">
                             <div class="report-header">
+                                <h3>Monthly Comparison</h3>
+                            </div>
+                            <div class="comparison-container">
+                                <div class="comparison-bar">
+                                    <span class="comparison-label">This Month</span>
+                                    <div class="comparison-track">
+                                        <div class="comparison-fill" id="thisMonthBar" style="width: 0%"></div>
+                                    </div>
+                                    <span class="comparison-value" id="thisMonthValue">$0</span>
+                                </div>
+                                <div class="comparison-bar">
+                                    <span class="comparison-label">Last Month</span>
+                                    <div class="comparison-track">
+                                        <div class="comparison-fill last" id="lastMonthBar" style="width: 0%"></div>
+                                    </div>
+                                    <span class="comparison-value" id="lastMonthValue">$0</span>
+                                </div>
+                            </div>
+                            <div class="comparison-change" id="monthlyChangeDisplay">
+                                <span class="change-badge">-</span>
+                            </div>
+                        </div>
+
+                        <div class="report-card">
+                            <div class="report-header">
+                                <h3>Payment Methods</h3>
+                            </div>
+                            <div class="report-body" id="paymentReport"></div>
+                        </div>
+
+                        <div class="report-card">
+                            <div class="report-header">
+                                <h3>Spending by Day</h3>
+                            </div>
+                            <div class="day-bars" id="dayBars"></div>
+                        </div>
+
+                        <div class="report-card full-width">
+                            <div class="report-header">
                                 <h3>Top Expenses</h3>
                             </div>
                             <div class="report-body" id="topExpenses"></div>
+                        </div>
+
+                        <div class="report-card full-width">
+                            <div class="report-header">
+                                <h3>Custom Date Range</h3>
+                            </div>
+                            <div class="custom-range-form">
+                                <div class="range-inputs">
+                                    <div class="form-group">
+                                        <label>From</label>
+                                        <input type="date" id="reportDateFrom">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>To</label>
+                                        <input type="date" id="reportDateTo">
+                                    </div>
+                                    <button class="btn-secondary" id="applyReportRange">Apply</button>
+                                </div>
+                                <div class="range-result" id="rangeResult"></div>
+                            </div>
                         </div>
                     </div>
 
@@ -334,6 +496,10 @@ header('Content-Type: text/html; charset=UTF-8');
                         <button class="btn-secondary" id="exportJSON">
                             <i class="fas fa-file-code"></i>
                             Export to JSON
+                        </button>
+                        <button class="btn-secondary" id="printReport">
+                            <i class="fas fa-print"></i>
+                            Print Report
                         </button>
                     </div>
                 </div>

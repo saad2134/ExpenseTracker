@@ -2,6 +2,7 @@ const API_URL = 'api/expenses.php';
 
 let expenses = [];
 let currentPage = 1;
+let notificationCount = 0;
 const itemsPerPage = 10;
 let settings = {
     currency: 'USD',
@@ -161,21 +162,49 @@ function updateDashboard() {
     
     document.getElementById('totalCount').textContent = expenses.length;
     
+    notificationCount = Math.min(expenses.length, 5);
+    const badge = document.getElementById('notificationBadge');
+    if (notificationCount > 0) {
+        badge.textContent = notificationCount;
+        badge.style.display = 'flex';
+    } else {
+        badge.style.display = 'none';
+    }
+    
     updateCategoryChart();
     updateRecentTransactions();
     updateTrendsChart();
 }
 
 function updateCategoryChart() {
+    const period = document.getElementById('chartPeriod').value;
     const now = new Date();
-    const thisMonth = expenses.filter(exp => {
-        const expDate = new Date(exp.date);
-        return expDate.getMonth() === now.getMonth() && 
-               expDate.getFullYear() === now.getFullYear();
-    });
+    
+    let filteredExpenses = [];
+    
+    switch(period) {
+        case 'week':
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            filteredExpenses = expenses.filter(exp => new Date(exp.date) >= weekAgo);
+            break;
+        case 'month':
+            filteredExpenses = expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate.getMonth() === now.getMonth() && 
+                       expDate.getFullYear() === now.getFullYear();
+            });
+            break;
+        case 'year':
+            filteredExpenses = expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate.getFullYear() === now.getFullYear();
+            });
+            break;
+    }
     
     const categoryTotals = {};
-    thisMonth.forEach(exp => {
+    filteredExpenses.forEach(exp => {
         categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + parseFloat(exp.amount);
     });
     
@@ -193,7 +222,7 @@ function updateCategoryChart() {
     
     let gradient = '';
     let cumulative = 0;
-    const entries = Object.entries(categoryTotals);
+    const entries = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
     
     entries.forEach(([cat, amount]) => {
         const percent = (amount / total) * 100;
@@ -243,42 +272,53 @@ function updateRecentTransactions() {
 }
 
 function updateTrendsChart() {
-    const months = [];
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     
-    for (let i = 5; i >= 0; i--) {
-        const d = new Date();
-        d.setMonth(d.getMonth() - i);
-        months.push({
-            name: monthNames[d.getMonth()],
-            month: d.getMonth(),
-            year: d.getFullYear()
-        });
-    }
+    const monthTotals = {};
+    expenses.forEach(exp => {
+        const d = new Date(exp.date);
+        const key = `${d.getFullYear()}-${d.getMonth()}`;
+        if (!monthTotals[key]) {
+            monthTotals[key] = {
+                month: d.getMonth(),
+                year: d.getFullYear(),
+                total: 0
+            };
+        }
+        monthTotals[key].total += parseFloat(exp.amount);
+    });
+    
+    const monthsWithExpenses = Object.values(monthTotals)
+        .sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            return a.month - b.month;
+        })
+        .slice(-6);
     
     const barsContainer = document.getElementById('trendsBars');
     const labelsContainer = document.getElementById('trendsLabels');
     
-    const monthlyTotals = months.map(m => {
-        return expenses
-            .filter(exp => {
-                const d = new Date(exp.date);
-                return d.getMonth() === m.month && d.getFullYear() === m.year;
-            })
-            .reduce((sum, exp) => sum + parseFloat(exp.amount), 0);
-    });
+    if (monthsWithExpenses.length === 0) {
+        barsContainer.innerHTML = '';
+        labelsContainer.innerHTML = '<span class="bar-label">No data</span>';
+        return;
+    }
     
-    const maxValue = Math.max(...monthlyTotals, 1);
+    const maxValue = Math.max(...monthsWithExpenses.map(m => m.total), 1);
     
-    barsContainer.innerHTML = months.map((m, i) => `
+    barsContainer.innerHTML = monthsWithExpenses.map(m => {
+        const height = (m.total / maxValue) * 120;
+        return `
         <div class="bar-wrapper">
-            <div class="bar" style="height: ${(monthlyTotals[i] / maxValue) * 120}px"></div>
+            <div class="bar-value">${formatCurrency(m.total)}</div>
+            <div class="bar" style="height: ${Math.max(height, 4)}px"></div>
         </div>
-    `).join('');
+    `;
+    }).join('');
     
-    labelsContainer.innerHTML = months.map(m => `
-        <span class="bar-label">${m.name}</span>
-    `).join('');
+    labelsContainer.innerHTML = monthsWithExpenses.map(m =>
+        `<span class="bar-label">${monthNames[m.month]}</span>`
+    ).join('');
 }
 
 function updateExpensesTable() {
@@ -399,42 +439,233 @@ async function loadData() {
     updateReports();
 }
 
+let reportPeriod = 'month';
+
 function updateReports() {
-    const categoryReport = document.getElementById('categoryReport');
     const now = new Date();
-    const thisMonth = expenses.filter(exp => {
+    
+    updateCategoryReport();
+    updatePaymentReport();
+    updateDayBars();
+    updateTopExpenses();
+    updateMonthlyComparison();
+}
+
+function getFilteredExpenses(period) {
+    const now = new Date();
+    switch(period) {
+        case 'week':
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            return expenses.filter(exp => new Date(exp.date) >= weekAgo);
+        case 'month':
+            return expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate.getMonth() === now.getMonth() && expDate.getFullYear() === now.getFullYear();
+            });
+        case 'year':
+            return expenses.filter(exp => new Date(exp.date).getFullYear() === now.getFullYear());
+        default:
+            return [...expenses];
+    }
+}
+
+function getLastMonthExpenses() {
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return expenses.filter(exp => {
         const expDate = new Date(exp.date);
-        return expDate.getMonth() === now.getMonth() && 
-               expDate.getFullYear() === now.getFullYear();
+        return expDate.getMonth() === lastMonth.getMonth() && expDate.getFullYear() === lastMonth.getFullYear();
     });
+}
+
+function getUniqueDays() {
+    const days = new Set(expenses.map(exp => exp.date));
+    return Math.max(days.size, 1);
+}
+
+function updateCategoryReport() {
+    const categoryReport = document.getElementById('categoryReport');
+    const reportDonut = document.getElementById('reportDonut');
+    let filtered = reportPeriod === 'week' ? getFilteredExpenses('week') : 
+                   reportPeriod === 'month' ? getFilteredExpenses('month') : 
+                   getFilteredExpenses('year');
     
     const categoryTotals = {};
-    thisMonth.forEach(exp => {
+    filtered.forEach(exp => {
         categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + parseFloat(exp.amount);
     });
     
+    const total = Object.values(categoryTotals).reduce((a, b) => a + b, 0);
     const sorted = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]);
     
-    categoryReport.innerHTML = sorted.length > 0 
-        ? sorted.map(([cat, amount]) => `
+    if (total === 0) {
+        categoryReport.innerHTML = '<p style="color: var(--text-muted)">No data available</p>';
+        reportDonut.style.background = '#e2e8f0';
+        return;
+    }
+    
+    let gradient = '';
+    let cumulative = 0;
+    sorted.forEach(([cat, amount]) => {
+        const percent = (amount / total) * 100;
+        const color = categoryColors[cat] || categoryColors.other;
+        gradient += `${color} ${cumulative}deg ${cumulative + percent * 3.6}deg, `;
+        cumulative += percent * 3.6;
+    });
+    reportDonut.style.background = `conic-gradient(${gradient.slice(0, -2)})`;
+    
+    categoryReport.innerHTML = sorted.map(([cat, amount]) => {
+        const percent = ((amount / total) * 100).toFixed(1);
+        return `
             <div class="report-item">
-                <span class="report-item-label">${cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
-                <span class="report-item-value">${formatCurrency(amount)}</span>
+                <span class="report-item-label">
+                    <span class="cat-dot" style="background: ${categoryColors[cat] || categoryColors.other}"></span>
+                    ${cat.charAt(0).toUpperCase() + cat.slice(1)}
+                </span>
+                <span class="report-item-value">${formatCurrency(amount)} <small>${percent}%</small></span>
             </div>
-        `).join('')
-        : '<p style="color: var(--text-muted)">No data available</p>';
+        `;
+    }).join('');
+}
+
+function updatePaymentReport() {
+    const paymentReport = document.getElementById('paymentReport');
+    const paymentTotals = {};
+    expenses.forEach(exp => {
+        const method = exp.payment_method || 'cash';
+        paymentTotals[method] = (paymentTotals[method] || 0) + parseFloat(exp.amount);
+    });
     
-    const topExpenses = [...expenses].sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount)).slice(0, 5);
-    const topExpensesEl = document.getElementById('topExpenses');
+    const total = Object.values(paymentTotals).reduce((a, b) => a + b, 0);
+    const methodNames = { cash: 'Cash', card: 'Card', bank: 'Bank Transfer', other: 'Other' };
+    const methodIcons = { cash: 'fa-money-bill', card: 'fa-credit-card', bank: 'fa-university', other: 'fa-ellipsis-h' };
     
-    topExpensesEl.innerHTML = topExpenses.length > 0
-        ? topExpenses.map(exp => `
+    if (total === 0) {
+        paymentReport.innerHTML = '<p style="color: var(--text-muted)">No data available</p>';
+        return;
+    }
+    
+    paymentReport.innerHTML = Object.entries(paymentTotals).map(([method, amount]) => {
+        const percent = ((amount / total) * 100).toFixed(1);
+        return `
             <div class="report-item">
-                <span class="report-item-label">${exp.description}</span>
+                <span class="report-item-label">
+                    <i class="fas ${methodIcons[method] || 'fa-wallet'}"></i>
+                    ${methodNames[method] || method}
+                </span>
+                <span class="report-item-value">${formatCurrency(amount)} <small>${percent}%</small></span>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateDayBars() {
+    const dayBars = document.getElementById('dayBars');
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayTotals = Array(7).fill(0);
+    
+    expenses.forEach(exp => {
+        const dayIndex = new Date(exp.date).getDay();
+        dayTotals[dayIndex] += parseFloat(exp.amount);
+    });
+    
+    const maxValue = Math.max(...dayTotals, 1);
+    
+    dayBars.innerHTML = days.map((day, i) => {
+        const height = (dayTotals[i] / maxValue) * 80;
+        return `
+            <div class="day-bar-item">
+                <span class="day-value">${dayTotals[i] > 0 ? formatCurrency(dayTotals[i]) : ''}</span>
+                <div class="day-bar" style="height: ${Math.max(height, 4)}px"></div>
+                <span class="day-label">${day}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateTopExpenses() {
+    const topExpensesEl = document.getElementById('topExpenses');
+    const top = [...expenses].sort((a, b) => parseFloat(b.amount) - parseFloat(a.amount)).slice(0, 5);
+    
+    if (top.length === 0) {
+        topExpensesEl.innerHTML = '<p style="color: var(--text-muted)">No data available</p>';
+        return;
+    }
+    
+    topExpensesEl.innerHTML = top.map((exp, i) => {
+        const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+        return `
+            <div class="report-item">
+                <span class="report-item-label">
+                    ${i < 3 ? '<i class="fas fa-trophy" style="color: var(--text-muted)"></i>' : ''}
+                    ${exp.description}
+                </span>
                 <span class="report-item-value">${formatCurrency(exp.amount)}</span>
             </div>
-        `).join('')
-        : '<p style="color: var(--text-muted)">No data available</p>';
+        `;
+    }).join('');
+}
+
+function updateMonthlyComparison() {
+    const now = new Date();
+    const thisMonthTotal = getFilteredExpenses('month').reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const lastMonthTotal = getLastMonthExpenses().reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    
+    document.getElementById('thisMonthValue').textContent = formatCurrency(thisMonthTotal);
+    document.getElementById('lastMonthValue').textContent = formatCurrency(lastMonthTotal);
+    
+    const maxValue = Math.max(thisMonthTotal, lastMonthTotal, 1);
+    document.getElementById('thisMonthBar').style.width = `${(thisMonthTotal / maxValue) * 100}%`;
+    document.getElementById('lastMonthBar').style.width = `${(lastMonthTotal / maxValue) * 100}%`;
+    
+    const changeDisplay = document.getElementById('monthlyChangeDisplay');
+    if (lastMonthTotal === 0) {
+        changeDisplay.innerHTML = '<span class="change-badge">-</span>';
+    } else {
+        const change = ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100;
+        const isPositive = change > 0;
+        changeDisplay.innerHTML = `
+            <span class="change-badge ${isPositive ? 'negative' : 'positive'}">
+                ${isPositive ? '+' : ''}${change.toFixed(1)}% ${isPositive ? 'more' : 'less'}
+            </span>
+        `;
+    }
+}
+
+function updateCustomRange() {
+    const from = document.getElementById('reportDateFrom').value;
+    const to = document.getElementById('reportDateTo').value;
+    const result = document.getElementById('rangeResult');
+    
+    if (!from || !to) return;
+    
+    const filtered = expenses.filter(exp => {
+        const date = new Date(exp.date);
+        return date >= new Date(from) && date <= new Date(to);
+    });
+    
+    const total = filtered.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const count = filtered.length;
+    const avg = count > 0 ? total / count : 0;
+    
+    result.classList.add('active');
+    result.innerHTML = `
+        <div class="range-result-grid">
+            <div class="range-stat">
+                <div class="range-stat-label">Total</div>
+                <div class="range-stat-value">${formatCurrency(total)}</div>
+            </div>
+            <div class="range-stat">
+                <div class="range-stat-label">Expenses</div>
+                <div class="range-stat-value">${count}</div>
+            </div>
+            <div class="range-stat">
+                <div class="range-stat-label">Average</div>
+                <div class="range-stat-value">${formatCurrency(avg)}</div>
+            </div>
+        </div>
+    `;
 }
 
 function exportToCSV() {
@@ -571,6 +802,147 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
+    const notificationBtn = document.getElementById('notificationBtn');
+    const notificationPopup = document.getElementById('notificationPopup');
+    const closeNotification = document.getElementById('closeNotification');
+    
+    notificationBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notificationPopup.classList.toggle('active');
+        if (notificationPopup.classList.contains('active')) {
+            loadNotificationList();
+        }
+    });
+    
+    closeNotification.addEventListener('click', () => {
+        notificationPopup.classList.remove('active');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!notificationPopup.contains(e.target) && !notificationBtn.contains(e.target)) {
+            notificationPopup.classList.remove('active');
+        }
+    });
+    
+    const userProfileBtn = document.getElementById('userProfileBtn');
+    const profilePopup = document.getElementById('profilePopup');
+    const closeProfile = document.getElementById('closeProfile');
+    
+    userProfileBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profilePopup.classList.toggle('active');
+    });
+    
+    closeProfile.addEventListener('click', () => {
+        profilePopup.classList.remove('active');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!profilePopup.contains(e.target) && !userProfileBtn.contains(e.target)) {
+            profilePopup.classList.remove('active');
+        }
+    });
+    
+    document.querySelectorAll('.profile-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.profile-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.profile-panel').forEach(p => p.classList.remove('active'));
+            tab.classList.add('active');
+            document.getElementById(tab.dataset.tab + 'Panel').classList.add('active');
+        });
+    });
+    
+    document.querySelectorAll('.avatar-option').forEach(option => {
+        option.addEventListener('click', () => {
+            document.querySelectorAll('.avatar-option').forEach(o => o.classList.remove('active'));
+            option.classList.add('active');
+            const avatar = option.dataset.avatar;
+            document.getElementById('userAvatar').textContent = avatar;
+            document.getElementById('profileAvatar').textContent = avatar;
+        });
+    });
+    
+    document.getElementById('saveProfile').addEventListener('click', () => {
+        const name = document.getElementById('profileNameInput').value || 'User';
+        const email = document.getElementById('profileEmail').value;
+        const avatar = document.querySelector('.avatar-option.active')?.dataset.avatar || 'U';
+        
+        document.getElementById('userName').textContent = name;
+        document.getElementById('userRole').textContent = email || 'Premium';
+        document.getElementById('profileName').textContent = name;
+        
+        showToast('Profile updated successfully!', 'success');
+        profilePopup.classList.remove('active');
+    });
+    
+    document.getElementById('darkModeToggle').addEventListener('change', (e) => {
+        if (e.target.checked) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'light');
+        }
+    });
+    
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+        if (confirm('Are you sure you want to logout?')) {
+            showToast('Logged out successfully!', 'success');
+            profilePopup.classList.remove('active');
+        }
+    });
+    
+    function loadNotificationList() {
+        const list = document.getElementById('notificationList');
+        const recent = [...expenses].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+        
+        if (recent.length === 0) {
+            list.innerHTML = `
+                <div class="notification-empty">
+                    <i class="fas fa-bell-slash"></i>
+                    <p>No recent purchases</p>
+                </div>
+            `;
+            return;
+        }
+        
+        list.innerHTML = recent.map(exp => {
+            const createdDate = new Date(exp.created_at);
+            const timeAgo = getTimeAgo(createdDate);
+            const icon = categoryIcons[exp.category] || '📦';
+            const bgColor = categoryColors[exp.category] || '#64748b';
+            
+            return `
+                <div class="notification-item">
+                    <div class="notification-icon" style="background: ${bgColor}20; color: ${bgColor};">
+                        ${icon}
+                    </div>
+                    <div class="notification-details">
+                        <div class="notification-title">${exp.description}</div>
+                        <div class="notification-meta">
+                            <span>${exp.category}</span>
+                            <span>•</span>
+                            <span>${timeAgo}</span>
+                        </div>
+                    </div>
+                    <div class="notification-amount">-${formatCurrency(exp.amount)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    function getTimeAgo(date) {
+        const now = new Date();
+        const diff = now - date;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        
+        if (minutes < 1) return 'Just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        if (hours < 24) return `${hours}h ago`;
+        if (days < 7) return `${days}d ago`;
+        return formatDate(date);
+    }
+    
     document.getElementById('applyFilters').addEventListener('click', async () => {
         const category = document.getElementById('filterCategory').value;
         const dateFrom = document.getElementById('filterDateFrom').value;
@@ -591,62 +963,15 @@ document.addEventListener('DOMContentLoaded', () => {
         updateExpensesTable();
     });
     
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        const search = e.target.value.toLowerCase();
-        const filtered = expenses.filter(exp => 
-            exp.description.toLowerCase().includes(search) ||
-            exp.category.toLowerCase().includes(search) ||
-            exp.notes?.toLowerCase().includes(search)
-        );
-        
-        const tbody = document.getElementById('expensesTableBody');
-        if (filtered.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="empty-cell">
-                        <div class="empty-state">
-                            <i class="fas fa-search"></i>
-                            <p>No matching expenses found</p>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        } else {
-            const start = (currentPage - 1) * itemsPerPage;
-            const paginated = filtered.slice(start, start + itemsPerPage);
-            tbody.innerHTML = paginated.map(exp => `
-                <tr>
-                    <td>${formatDate(exp.date)}</td>
-                    <td>
-                        <div>${exp.description}</div>
-                        ${exp.notes ? `<small style="color: var(--text-muted)">${exp.notes}</small>` : ''}
-                    </td>
-                    <td>
-                        <span class="category-badge ${exp.category}">
-                            ${categoryIcons[exp.category] || ''} ${exp.category}
-                        </span>
-                    </td>
-                    <td><strong>${formatCurrency(exp.amount)}</strong></td>
-                    <td>
-                        <div class="expense-actions">
-                            <button class="btn-edit" onclick="openEditModal('${exp.id}')">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="btn-delete" onclick="confirmDelete('${exp.id}')">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-        }
-    });
-    
     document.getElementById('exportBtn').addEventListener('click', exportToCSV);
     document.getElementById('exportCSV').addEventListener('click', exportToCSV);
     document.getElementById('exportJSON').addEventListener('click', exportToJSON);
     document.getElementById('backupData').addEventListener('click', backupData);
     document.getElementById('clearData').addEventListener('click', clearAllData);
+    
+    document.getElementById('chartPeriod').addEventListener('change', () => {
+        updateCategoryChart();
+    });
     
     document.getElementById('currencySetting').addEventListener('change', (e) => {
         settings.currency = e.target.value;
@@ -660,5 +985,83 @@ document.addEventListener('DOMContentLoaded', () => {
         updateExpensesTable();
     });
     
+    document.querySelectorAll('.period-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            reportPeriod = tab.dataset.period;
+            updateCategoryReport();
+        });
+    });
+    
+    document.getElementById('applyReportRange').addEventListener('click', updateCustomRange);
+    
+    document.getElementById('printReport').addEventListener('click', () => {
+        window.print();
+    });
+    
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        
+        if (query.length === 0) {
+            document.getElementById('searchResultsSection').style.display = 'none';
+            return;
+        }
+        
+        const results = expenses.filter(exp =>
+            exp.description.toLowerCase().includes(query) ||
+            exp.category.toLowerCase().includes(query) ||
+            exp.notes?.toLowerCase().includes(query)
+        );
+        
+        showSearchResults(results, query);
+    });
+    
+    document.getElementById('clearSearchResults').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchResultsSection').style.display = 'none';
+    });
+    
     loadData();
 });
+
+function showSearchResults(results, query) {
+    const section = document.getElementById('searchResultsSection');
+    const count = document.getElementById('searchResultsCount');
+    const list = document.getElementById('searchResultsList');
+    
+    count.textContent = results.length === 1 ? '1 result' : `${results.length} results`;
+    
+    if (results.length === 0) {
+        list.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <p>No results found for "${query}"</p>
+            </div>
+        `;
+    } else {
+        list.innerHTML = results.map(exp => {
+            const color = categoryColors[exp.category] || categoryColors.other;
+            const icon = categoryIcons[exp.category] || categoryIcons.other;
+            return `
+                <div class="search-result-item">
+                    <div class="search-result-icon" style="background: ${color}20; color: ${color};">
+                        ${icon}
+                    </div>
+                    <div class="search-result-details">
+                        <div class="search-result-title">${exp.description}</div>
+                        <div class="search-result-meta">
+                            <span>${exp.category.charAt(0).toUpperCase() + exp.category.slice(1)}</span>
+                            <span>•</span>
+                            <span>${formatDate(exp.date)}</span>
+                            ${exp.notes ? `<span>•</span><span>${exp.notes}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="search-result-amount">-${formatCurrency(exp.amount)}</div>
+                </div>
+            `;
+        }).join('');
+    }
+    
+    section.style.display = 'block';
+}

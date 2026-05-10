@@ -1,1 +1,62 @@
-[]
+[
+    {
+        "id": "6a004803ce02f_1778403331",
+        "description": "iphone",
+        "amount": 1200,
+        "category": "shopping",
+        "date": "2026-05-10",
+        "payment_method": "card",
+        "notes": "",
+        "created_at": "2026-05-10 08:55:31"
+    },
+    {
+        "id": "6a004b798e76c_1778404217",
+        "description": "ps5",
+        "amount": 500,
+        "category": "entertainment",
+        "date": "2026-03-27",
+        "payment_method": "cash",
+        "notes": "",
+        "created_at": "2026-05-10 09:10:17"
+    },
+    {
+        "id": "6a00583a0c501_1778407482",
+        "description": "rent",
+        "amount": 900,
+        "category": "utilities",
+        "date": "2026-05-01",
+        "payment_method": "bank",
+        "notes": "",
+        "created_at": "2026-05-10 10:04:42"
+    },
+    {
+        "id": "6a0059f1ed861_1778407921",
+        "description": "rent",
+        "amount": 900,
+        "category": "utilities",
+        "date": "2026-03-01",
+        "payment_method": "bank",
+        "notes": "",
+        "created_at": "2026-05-10 10:12:01"
+    },
+    {
+        "id": "6a005d4768931_1778408775",
+        "description": "bike",
+        "amount": 1900,
+        "category": "transport",
+        "date": "2026-06-04",
+        "payment_method": "card",
+        "notes": "",
+        "created_at": "2026-05-10 10:26:15"
+    },
+    {
+        "id": "6a005e244919a_1778408996",
+        "description": "rent",
+        "amount": 900,
+        "category": "utilities",
+        "date": "2026-04-10",
+        "payment_method": "bank",
+        "notes": "",
+        "created_at": "2026-05-10 10:29:56"
+    }
+]
