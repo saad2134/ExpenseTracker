@@ -8,6 +8,10 @@ $dataFile = __DIR__ . '/../data/expenses.json';
 
 function loadExpenses() {
     global $dataFile;
+    $dir = dirname($dataFile);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
     if (!file_exists($dataFile)) {
         return [];
     }
@@ -17,6 +21,10 @@ function loadExpenses() {
 
 function saveExpenses($expenses) {
     global $dataFile;
+    $dir = dirname($dataFile);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
     file_put_contents($dataFile, json_encode($expenses, JSON_PRETTY_PRINT));
 }
 

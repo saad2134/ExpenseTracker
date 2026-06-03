@@ -96,13 +96,20 @@ header('Content-Type: text/html; charset=UTF-8');
                         <div class="profile-panel" id="settingsPanel">
                             <div class="settings-row">
                                 <div class="settings-label">
-                                    <i class="fas fa-moon"></i>
-                                    <span>Dark Mode</span>
+                                    <i class="fas fa-palette"></i>
+                                    <span>Theme</span>
                                 </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="darkModeToggle">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                                <div class="theme-selector" id="profileThemeSelector">
+                                    <button class="theme-option" data-theme="system" title="System">
+                                        <i class="fas fa-desktop"></i>
+                                    </button>
+                                    <button class="theme-option" data-theme="light" title="Light">
+                                        <i class="fas fa-sun"></i>
+                                    </button>
+                                    <button class="theme-option" data-theme="dark" title="Dark">
+                                        <i class="fas fa-moon"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="settings-row">
                                 <div class="settings-label">
@@ -168,15 +175,6 @@ header('Content-Type: text/html; charset=UTF-8');
                     <div class="view-header">
                         <h1>Dashboard</h1>
                         <p class="subtitle">Overview of your expenses</p>
-                    </div>
-                    
-                    <div class="search-results-section" id="searchResultsSection" style="display: none;">
-                        <div class="search-results-header">
-                            <h2><i class="fas fa-search"></i> Search Results</h2>
-                            <span id="searchResultsCount"></span>
-                        </div>
-                        <div class="search-results-list" id="searchResultsList"></div>
-                        <button class="btn-secondary" id="clearSearchResults">Clear Search</button>
                     </div>
                     
                     <div class="stats-grid" id="statsGrid">
@@ -512,6 +510,21 @@ header('Content-Type: text/html; charset=UTF-8');
 
                     <div class="settings-grid">
                         <div class="settings-card">
+                            <h3>Theme</h3>
+                            <div class="theme-selector" id="settingsThemeSelector" style="width: 100%; justify-content: center;">
+                                <button class="theme-option" data-theme="system" title="System">
+                                    <i class="fas fa-desktop"></i> System
+                                </button>
+                                <button class="theme-option" data-theme="light" title="Light">
+                                    <i class="fas fa-sun"></i> Light
+                                </button>
+                                <button class="theme-option" data-theme="dark" title="Dark">
+                                    <i class="fas fa-moon"></i> Dark
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="settings-card">
                             <h3>Currency</h3>
                             <select id="currencySetting">
                                 <option value="USD" selected>USD ($)</option>
@@ -610,6 +623,23 @@ header('Content-Type: text/html; charset=UTF-8');
                     <button type="button" class="btn-secondary" id="cancelEdit">Cancel</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div class="search-dialog" id="searchResultsSection">
+        <div class="search-dialog-content">
+            <div class="search-dialog-header">
+                <h2><i class="fas fa-search"></i> Search Results</h2>
+                <div class="search-dialog-actions">
+                    <span id="searchResultsCount"></span>
+                    <button class="modal-close" id="closeSearchDialog">&times;</button>
+                </div>
+            </div>
+            <div class="search-results-list" id="searchResultsList"></div>
+            <div class="search-pagination" id="searchPagination"></div>
+            <div class="search-dialog-footer">
+                <button class="btn-secondary" id="clearSearchResults">Clear Search</button>
+            </div>
         </div>
     </div>
 

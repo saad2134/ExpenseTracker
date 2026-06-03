@@ -4,10 +4,43 @@ let expenses = [];
 let currentPage = 1;
 let notificationCount = 0;
 const itemsPerPage = 10;
+let searchQuery = '';
+let searchResults = [];
+let searchCurrentPage = 1;
 let settings = {
     currency: 'USD',
     dateFormat: 'MM/DD/YYYY'
 };
+let currentTheme = 'system';
+
+function applyTheme(theme) {
+    currentTheme = theme;
+    if (theme === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+    } else {
+        document.documentElement.setAttribute('data-theme', theme);
+    }
+    localStorage.setItem('expense-tracker-theme', theme);
+    document.querySelectorAll('.theme-option').forEach(el => {
+        el.classList.toggle('active', el.dataset.theme === theme);
+    });
+}
+
+function initTheme() {
+    const saved = localStorage.getItem('expense-tracker-theme') || 'system';
+    applyTheme(saved);
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (currentTheme === 'system') {
+            applyTheme('system');
+        }
+    });
+    document.querySelectorAll('.theme-option').forEach(btn => {
+        btn.addEventListener('click', () => {
+            applyTheme(btn.dataset.theme);
+        });
+    });
+}
 
 const currencySymbols = {
     USD: '$',
@@ -875,13 +908,7 @@ document.addEventListener('DOMContentLoaded', () => {
         profilePopup.classList.remove('active');
     });
     
-    document.getElementById('darkModeToggle').addEventListener('change', (e) => {
-        if (e.target.checked) {
-            document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-            document.documentElement.setAttribute('data-theme', 'light');
-        }
-    });
+    initTheme();
     
     document.getElementById('logoutBtn').addEventListener('click', () => {
         if (confirm('Are you sure you want to logout?')) {
@@ -1001,46 +1028,72 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     document.getElementById('searchInput').addEventListener('input', (e) => {
-        const query = e.target.value.toLowerCase().trim();
+        searchQuery = e.target.value.toLowerCase().trim();
         
-        if (query.length === 0) {
-            document.getElementById('searchResultsSection').style.display = 'none';
+        if (searchQuery.length === 0) {
+            document.getElementById('searchResultsSection').classList.remove('active');
             return;
         }
         
-        const results = expenses.filter(exp =>
-            exp.description.toLowerCase().includes(query) ||
-            exp.category.toLowerCase().includes(query) ||
-            exp.notes?.toLowerCase().includes(query)
+        searchResults = expenses.filter(exp =>
+            exp.description.toLowerCase().includes(searchQuery) ||
+            exp.category.toLowerCase().includes(searchQuery) ||
+            exp.notes?.toLowerCase().includes(searchQuery)
         );
         
-        showSearchResults(results, query);
+        searchCurrentPage = 1;
+        showSearchResults();
     });
     
     document.getElementById('clearSearchResults').addEventListener('click', () => {
         document.getElementById('searchInput').value = '';
-        document.getElementById('searchResultsSection').style.display = 'none';
+        searchQuery = '';
+        searchResults = [];
+        searchCurrentPage = 1;
+        document.getElementById('searchResultsSection').classList.remove('active');
+    });
+    
+    document.getElementById('closeSearchDialog').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        searchQuery = '';
+        searchResults = [];
+        searchCurrentPage = 1;
+        document.getElementById('searchResultsSection').classList.remove('active');
+    });
+    
+    document.getElementById('searchResultsSection').addEventListener('click', (e) => {
+        if (e.target === document.getElementById('searchResultsSection')) {
+            document.getElementById('searchInput').value = '';
+            searchQuery = '';
+            searchResults = [];
+            searchCurrentPage = 1;
+            document.getElementById('searchResultsSection').classList.remove('active');
+        }
     });
     
     loadData();
 });
 
-function showSearchResults(results, query) {
+function showSearchResults() {
     const section = document.getElementById('searchResultsSection');
     const count = document.getElementById('searchResultsCount');
     const list = document.getElementById('searchResultsList');
     
-    count.textContent = results.length === 1 ? '1 result' : `${results.length} results`;
+    count.textContent = searchResults.length === 1 ? '1 result' : `${searchResults.length} results`;
     
-    if (results.length === 0) {
+    if (searchResults.length === 0) {
         list.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-search"></i>
-                <p>No results found for "${query}"</p>
+                <p>No results found for "${searchQuery}"</p>
             </div>
         `;
+        document.getElementById('searchPagination').innerHTML = '';
     } else {
-        list.innerHTML = results.map(exp => {
+        const start = (searchCurrentPage - 1) * itemsPerPage;
+        const paginatedResults = searchResults.slice(start, start + itemsPerPage);
+        
+        list.innerHTML = paginatedResults.map(exp => {
             const color = categoryColors[exp.category] || categoryColors.other;
             const icon = categoryIcons[exp.category] || categoryIcons.other;
             return `
@@ -1061,7 +1114,46 @@ function showSearchResults(results, query) {
                 </div>
             `;
         }).join('');
+        
+        updateSearchPagination();
     }
     
-    section.style.display = 'block';
+    section.classList.add('active');
+}
+
+function updateSearchPagination() {
+    const pagination = document.getElementById('searchPagination');
+    const totalPages = Math.ceil(searchResults.length / itemsPerPage);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = `
+        <button onclick="goToSearchPage(${searchCurrentPage - 1})" ${searchCurrentPage === 1 ? 'disabled' : ''}>
+            <i class="fas fa-chevron-left"></i>
+        </button>
+    `;
+    
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= searchCurrentPage - 1 && i <= searchCurrentPage + 1)) {
+            html += `<button class="${i === searchCurrentPage ? 'active' : ''}" onclick="goToSearchPage(${i})">${i}</button>`;
+        } else if (i === searchCurrentPage - 2 || i === searchCurrentPage + 2) {
+            html += `<button disabled>...</button>`;
+        }
+    }
+    
+    html += `
+        <button onclick="goToSearchPage(${searchCurrentPage + 1})" ${searchCurrentPage === totalPages ? 'disabled' : ''}>
+            <i class="fas fa-chevron-right"></i>
+        </button>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function goToSearchPage(page) {
+    searchCurrentPage = page;
+    showSearchResults();
 }
